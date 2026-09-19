@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AliExpress Invoice
 // @namespace    https://github.com/elfensky/aliexpress-invoice
-// @version      0.1.0
+// @version      0.1.1
 // @description  Adds a "Generate invoice" button to your AliExpress orders and prints a proper purchase receipt (buyer block, VAT line) to PDF.
 // @author       Andrei Lavrenov
 // @license      MIT
@@ -38,7 +38,7 @@
   // ---- buyer block -------------------------------------------------------
 
   // Default buyer, parsed from the order's delivery address. AliExpress has no VAT
-  // field, so companies put it in the contact name: "SRL DRUNIK BE1026002256".
+  // field, so companies put it in the contact name: "ACME BV BE0123456789".
   function buyerFromAddress(a) {
     a = a || {};
     let name = a.contactName || '';
@@ -135,19 +135,22 @@ ${AUTO_PRINT ? '<script>setTimeout(function () { print(); }, 100);</script>' : '
 
   // ---- settings dialog -----------------------------------------------------
 
-  function openSettings() {
-    const b = loadBuyer() || { name: '', vat: '', address: '', extra: '' };
-    const dlg = document.createElement('dialog');
-    dlg.className = 'ali-invoice-dialog';
-    dlg.innerHTML = `<form method="dialog">
+  function settingsHTML(b) {
+    return `<form method="dialog">
   <h3>Invoice buyer details</h3>
   <p>Leave everything empty to use the delivery address of each order.</p>
-  <label>Company / name<input name="name" value="${esc(b.name)}"></label>
-  <label>VAT number<input name="vat" value="${esc(b.vat)}"></label>
-  <label>Address<textarea name="address" rows="3">${esc(b.address)}</textarea></label>
-  <label>Extra lines (email, IBAN, reference…)<textarea name="extra" rows="3">${esc(b.extra)}</textarea></label>
+  <label>Company / name<input name="name" data-1p-ignore autocomplete="off" value="${esc(b.name)}"></label>
+  <label>VAT number<input name="vat" data-1p-ignore autocomplete="off" value="${esc(b.vat)}"></label>
+  <label>Address<textarea name="address" data-1p-ignore autocomplete="off" rows="3">${esc(b.address)}</textarea></label>
+  <label>Extra lines (email, IBAN, reference…)<textarea name="extra" data-1p-ignore autocomplete="off" rows="3">${esc(b.extra)}</textarea></label>
   <menu><button value="cancel">Cancel</button><button value="clear">Use delivery address</button><button value="save" class="primary">Save</button></menu>
 </form>`;
+  }
+
+  function openSettings() {
+    const dlg = document.createElement('dialog');
+    dlg.className = 'ali-invoice-dialog';
+    dlg.innerHTML = settingsHTML(loadBuyer() || { name: '', vat: '', address: '', extra: '' });
     document.body.appendChild(dlg);
     dlg.addEventListener('close', () => {
       if (dlg.returnValue === 'save') {
@@ -227,6 +230,6 @@ ${AUTO_PRINT ? '<script>setTimeout(function () { print(); }, 100);</script>' : '
     }).observe(document.body, { childList: true, subtree: true });
   }
 
-  if (typeof module === 'object' && module.exports) module.exports = { buyerFromAddress, renderReceipt, TOTAL_ROWS };
+  if (typeof module === 'object' && module.exports) module.exports = { buyerFromAddress, renderReceipt, settingsHTML, PAGE_CSS, TOTAL_ROWS };
   else main();
 })();
