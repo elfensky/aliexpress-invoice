@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AliExpress Invoice
 // @namespace    https://github.com/elfensky/aliexpress-invoice
-// @version      0.1.1
+// @version      0.2.0
 // @description  Adds a "Generate invoice" button to your AliExpress orders and prints a proper purchase receipt (buyer block, VAT line) to PDF.
 // @author       Andrei Lavrenov
 // @license      MIT
@@ -137,7 +137,7 @@ ${AUTO_PRINT ? '<script>setTimeout(function () { print(); }, 100);</script>' : '
 
   function settingsHTML(b) {
     return `<form method="dialog">
-  <h3>Invoice buyer details</h3>
+  <h3 id="ali-invoice-dialog-title">Invoice buyer details</h3>
   <p>Leave everything empty to use the delivery address of each order.</p>
   <label>Company / name<input name="name" data-1p-ignore autocomplete="off" value="${esc(b.name)}"></label>
   <label>VAT number<input name="vat" data-1p-ignore autocomplete="off" value="${esc(b.vat)}"></label>
@@ -150,6 +150,7 @@ ${AUTO_PRINT ? '<script>setTimeout(function () { print(); }, 100);</script>' : '
   function openSettings() {
     const dlg = document.createElement('dialog');
     dlg.className = 'ali-invoice-dialog';
+    dlg.setAttribute('aria-labelledby', 'ali-invoice-dialog-title');
     dlg.innerHTML = settingsHTML(loadBuyer() || { name: '', vat: '', address: '', extra: '' });
     document.body.appendChild(dlg);
     dlg.addEventListener('close', () => {
@@ -167,53 +168,66 @@ ${AUTO_PRINT ? '<script>setTimeout(function () { print(); }, 100);</script>' : '
 
   // ---- page injection ------------------------------------------------------
 
+  // Sized and typeset like AliExpress' own Comet buttons (700 14px/24px, 32px tall, 16px radius),
+  // measured on the order pages 2026-09-19. #009966 is the site's own positive-money green.
+  const FONT = '"TT Norms Pro", "Open Sans", Roboto, Arial, Helvetica, sans-serif';
   const PAGE_CSS = `
-.ali-invoice-btn { margin: 0 12px; padding: 4px 12px; border: 1px solid #191919; border-radius: 999px; background: #fff; color: #191919; font: inherit; font-weight: 700; cursor: pointer; }
-.ali-invoice-btn:hover { background: #191919; color: #fff; }
-#ali-invoice-settings { position: fixed; right: 16px; bottom: 16px; z-index: 9999; padding: 8px 14px; border: 1px solid #ccc; border-radius: 999px; background: #fff; color: #191919; font: 13px system-ui, sans-serif; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
-.ali-invoice-dialog { border: 0; border-radius: 12px; padding: 20px 24px; width: 380px; max-width: 90vw; color: #191919; font: 14px system-ui, sans-serif; }
+.ali-invoice { display: inline-flex; align-items: center; gap: 8px; margin: 0 12px; vertical-align: middle; }
+.order-status .ali-invoice { margin: 0; } /* the host buttons there already carry margin-right: 16px */
+.ali-invoice-btn, .ali-invoice-gear { box-sizing: border-box; height: 32px; border-radius: 16px; font: 700 14px/24px ${FONT}; cursor: pointer; }
+.ali-invoice-btn { padding: 4px 12px; border: 0; background: #009966; color: #fff; }
+.ali-invoice-btn:hover { background: #007a52; }
+.ali-invoice-gear { width: 32px; padding: 0; border: 1px solid #999; background: #fff; color: #222; font-size: 17px; }
+.ali-invoice-gear:hover { border-color: #222; }
+.ali-invoice-btn:focus-visible, .ali-invoice-gear:focus-visible { outline: 2px solid #222; outline-offset: 2px; }
+.ali-invoice-dialog { border: 0; border-radius: 16px; padding: 20px 24px; width: 380px; max-width: 90vw; color: #222; font: 14px/1.4 ${FONT}; }
 .ali-invoice-dialog::backdrop { background: rgba(0,0,0,.4); }
-.ali-invoice-dialog h3 { margin: 0 0 4px; }
+.ali-invoice-dialog h3 { margin: 0 0 4px; font-size: 18px; }
 .ali-invoice-dialog p { margin: 0 0 12px; color: #666; font-size: 12px; }
 .ali-invoice-dialog label { display: block; margin-bottom: 10px; font-size: 12px; color: #444; }
-.ali-invoice-dialog input, .ali-invoice-dialog textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; font: 14px system-ui, sans-serif; }
+.ali-invoice-dialog input, .ali-invoice-dialog textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 8px; color: #222; font: 14px/1.4 ${FONT}; }
 .ali-invoice-dialog menu { display: flex; justify-content: flex-end; gap: 8px; margin: 16px 0 0; padding: 0; }
-.ali-invoice-dialog button { padding: 6px 14px; border: 1px solid #ccc; border-radius: 999px; background: #fff; color: #191919; font: inherit; cursor: pointer; }
-.ali-invoice-dialog button.primary { background: #191919; color: #fff; border-color: #191919; }
+.ali-invoice-dialog button { height: 32px; padding: 4px 12px; border: 1px solid #999; border-radius: 16px; background: #fff; color: #222; font: 700 14px/24px ${FONT}; cursor: pointer; }
+.ali-invoice-dialog button.primary { background: #009966; color: #fff; border-color: #009966; }
+.ali-invoice-dialog button.primary:hover { background: #007a52; border-color: #007a52; }
 `;
 
-  function makeButton(orderId) {
+  // "Generate invoice" plus a gear for the buyer settings. The gear shares the button's anchor,
+  // so it never collides with the host's fixed widgets (AliExpress parks "Need help?" bottom-right).
+  function makeControls(orderId) {
+    const wrap = document.createElement('span');
+    wrap.className = 'ali-invoice';
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'ali-invoice-btn';
     btn.textContent = 'Generate invoice';
     btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); generate(orderId); });
-    return btn;
+    const gear = document.createElement('button');
+    gear.type = 'button';
+    gear.className = 'ali-invoice-gear';
+    gear.textContent = '⚙︎';
+    gear.title = 'Invoice settings';
+    gear.setAttribute('aria-label', 'Invoice settings');
+    gear.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); openSettings(); });
+    wrap.append(btn, gear);
+    return wrap;
   }
 
   function inject() {
-    // Order list: one button per order card, next to "Details".
+    // Order list: controls per order card, next to "Details".
     document.querySelectorAll('.order-item .order-item-header-right:not([data-ali-invoice])').forEach((hdr) => {
       const link = hdr.querySelector('a[href*="orderId="]');
       const orderId = link && new URL(link.href, location.href).searchParams.get('orderId');
       if (!orderId) return;
       hdr.dataset.aliInvoice = orderId;
-      hdr.insertBefore(makeButton(orderId), link);
+      hdr.insertBefore(makeControls(orderId), link);
     });
-    // Order detail: one button in the status block, next to AliExpress' own buttons.
+    // Order detail: controls in the status block, after AliExpress' own buttons.
     const status = document.querySelector('.order-status.order-block:not([data-ali-invoice])');
     const orderId = new URLSearchParams(location.search).get('orderId');
     if (status && orderId) {
       status.dataset.aliInvoice = orderId;
-      status.appendChild(makeButton(orderId));
-    }
-    if (!document.getElementById('ali-invoice-settings')) {
-      const pill = document.createElement('button');
-      pill.id = 'ali-invoice-settings';
-      pill.type = 'button';
-      pill.textContent = '🧾 Invoice settings';
-      pill.addEventListener('click', openSettings);
-      document.body.appendChild(pill);
+      status.appendChild(makeControls(orderId));
     }
   }
 

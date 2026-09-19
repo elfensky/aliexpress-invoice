@@ -27,7 +27,7 @@ Updates ship through the script's `@updateURL`, so installs stay current automat
 - **Orders list** (`aliexpress.com/p/order/index.html`): each order card gets a **Generate invoice** button next to *Details*.
 - **Order detail page**: the button sits next to AliExpress' own status buttons.
 - Click it. The receipt opens in a new tab and the print dialog appears. Choose **Save as PDF**. The file is named `aliexpress-<orderId>.pdf`.
-- **🧾 Invoice settings** (bottom right) sets your own buyer block: company name, VAT number, address, and any extra lines (email, IBAN, reference). Leave it empty and the receipt uses the delivery address of each order, splitting a VAT number out of the contact name when one is present (`ACME BV BE0123456789` becomes a name and a VAT line).
+- The **⚙ gear** next to each button sets your own buyer block: company name, VAT number, address, and any extra lines (email, IBAN, reference). Leave it empty and the receipt uses the delivery address of each order, splitting a VAT number out of the contact name when one is present (`ACME BV BE0123456789` becomes a name and a VAT line).
 
 Allow pop-ups for `aliexpress.com` if the receipt tab does not open.
 

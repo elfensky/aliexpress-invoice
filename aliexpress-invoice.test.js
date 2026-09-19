@@ -1,7 +1,7 @@
 // Self-check for the pure parts. Run: node --test
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buyerFromAddress, renderReceipt } = require('./aliexpress-invoice.user.js');
+const { buyerFromAddress, renderReceipt, settingsHTML } = require('./aliexpress-invoice.user.js');
 
 // Trimmed shape of mtop.global.finance.taxation.invoice.queryOrderReceiptInfo → data.data
 const receipt = {
@@ -35,4 +35,11 @@ test('renderReceipt shows the buyer, every reported amount, the VAT line, and es
     assert.ok(html.includes(s), 'missing: ' + s);
   }
   assert.ok(!html.includes('Discount'), 'absent keys must not render');
+});
+
+test('settingsHTML labels the dialog, keeps password managers out, and escapes values', () => {
+  const html = settingsHTML({ name: 'A "quoted" <name>', vat: '', address: '', extra: '' });
+  assert.ok(html.includes('id="ali-invoice-dialog-title"'));
+  assert.equal((html.match(/data-1p-ignore/g) || []).length, 4);
+  assert.ok(html.includes('value="A &quot;quoted&quot; &lt;name&gt;"'));
 });
