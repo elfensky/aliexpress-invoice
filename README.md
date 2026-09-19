@@ -1,5 +1,7 @@
 # AliExpress Invoice
 
+[![Install](https://img.shields.io/badge/%E2%96%BC%20Install%20userscript-Tampermonkey-2ea44f?style=for-the-badge)](https://raw.githubusercontent.com/elfensky/aliexpress-invoice/main/aliexpress-invoice.user.js)
+
 Userscript that adds a **Generate invoice** button to your AliExpress orders and prints a proper purchase receipt to PDF: buyer block with VAT number, seller, items, every amount AliExpress reports, and the VAT amount included in the total.
 
 AliExpress has a receipt page per order, but it drops the VAT line, has no buyer or seller block, and its Download button produces an image. This script uses the same order data and lays it out as a document an accountant accepts.
@@ -15,7 +17,10 @@ AliExpress has a receipt page per order, but it drops the VAT line, has no buyer
 ## Install
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/) (or Violentmonkey).
-2. Open [`aliexpress-invoice.user.js`](https://raw.githubusercontent.com/elfensky/aliexpress-invoice/main/aliexpress-invoice.user.js) and confirm the install prompt.
+2. Click the **Install** button above; the extension opens its install screen.
+3. Reload your AliExpress orders page.
+
+Updates ship through the script's `@updateURL`, so installs stay current automatically.
 
 ## Use
 
