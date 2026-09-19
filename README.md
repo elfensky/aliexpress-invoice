@@ -8,19 +8,13 @@ AliExpress has a receipt page for every order. That page omits the VAT amount, h
 
 ## What it looks like
 
-The receipt as it goes to PDF, with sample data:
-
-![Receipt with buyer, seller, items, totals and the VAT line](docs/receipt-sample.png)
-
-The button and its ⚙ settings gear, on the orders list and on an order page:
-
-| Orders list | Order page |
+| Final result | Settings |
 |---|---|
+| ![Receipt with buyer, seller, items, totals and the VAT line](docs/receipt-sample.png) | ![Dialog with company name, VAT number, address and extra lines](docs/settings-dialog.png) |
+| **Orders list** | **Order page** |
 | ![Generate invoice button and gear in an order card](docs/orders-list.png) | ![Generate invoice button and gear next to the order status buttons](docs/order-detail.png) |
 
-The buyer details dialog behind the gear:
-
-<img src="docs/settings-dialog.png" alt="Dialog with company name, VAT number, address and extra lines" width="420">
+The receipt uses sample data. Screenshots are from the live site.
 
 ## Install
 
