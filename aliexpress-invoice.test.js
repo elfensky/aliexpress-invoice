@@ -1,7 +1,7 @@
 // Self-check for the pure parts. Run: node --test
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buyerFromAddress, renderReceipt, settingsHTML } = require('./aliexpress-invoice.user.js');
+const { buyerFor, settingsFromForm, renderReceipt, settingsHTML } = require('./aliexpress-invoice.user.js');
 
 // Trimmed shape of mtop.global.finance.taxation.invoice.queryOrderReceiptInfo → data.data
 const receipt = {
@@ -17,20 +17,31 @@ const receipt = {
   subOrders: [{ itemTitle: 'Widget <b>PCIe</b>', relateInfo: 'With POE', amount: '€ 84,39', itemCount: 2, sellerName: 'Some Store' }],
 };
 
-test('buyerFromAddress splits the VAT number out of the contact name', () => {
-  const b = buyerFromAddress(receipt.deliveryAddress);
+const form = (o) => { const f = new FormData(); for (const [k, v] of Object.entries(o)) f.append(k, v); return f; };
+
+test('buyerFor without buyer details uses the order values and splits the VAT number out of the contact name', () => {
+  const b = buyerFor(null, receipt.deliveryAddress);
   assert.equal(b.name, 'ACME BV');
   assert.equal(b.vat, 'BE0123456789');
   assert.equal(b.address, 'Example street 1\n1000 Brussels, Belgium');
   assert.equal(b.extra, '+32 400000000');
 });
 
-test('buyerFromAddress leaves a plain name alone', () => {
-  assert.deepEqual(buyerFromAddress({ contactName: 'Jane Doe' }), { name: 'Jane Doe', vat: '', address: '', extra: '' });
+test('buyerFor leaves a plain name alone', () => {
+  assert.deepEqual(buyerFor(null, { contactName: 'Jane Doe' }), { name: 'Jane Doe', vat: '', address: '', extra: '' });
+});
+
+test('buyerFor: saved buyer details replace the whole block', () => {
+  assert.deepEqual(buyerFor({ name: '', vat: 'BE0999999999', address: '', extra: '' }, receipt.deliveryAddress), { name: '', vat: 'BE0999999999', address: '', extra: '' });
+});
+
+test('settingsFromForm trims the fields and returns null for an empty form', () => {
+  assert.deepEqual(settingsFromForm(form({ name: ' ACME BV ', vat: '', address: 'Street 1\n', extra: '' })), { name: 'ACME BV', vat: '', address: 'Street 1', extra: '' });
+  assert.equal(settingsFromForm(form({ name: ' ', vat: '', address: '', extra: '' })), null);
 });
 
 test('renderReceipt shows the buyer, every reported amount, the VAT line, and escapes HTML', () => {
-  const html = renderReceipt(receipt, buyerFromAddress(receipt.deliveryAddress));
+  const html = renderReceipt(receipt, buyerFor(null, receipt.deliveryAddress));
   for (const s of ['ACME BV', 'VAT BE0123456789', '€ 168,78', '-€ 0,10', '€ 3,63', '€ 172,41', 'of which VAT (included)', '€ 29,92', 'Bancontact', 'Some Store', 'Widget &lt;b&gt;PCIe&lt;/b&gt;', '<title>aliexpress-3000000000000001</title>']) {
     assert.ok(html.includes(s), 'missing: ' + s);
   }
