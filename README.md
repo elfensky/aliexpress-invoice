@@ -35,7 +35,13 @@ If the receipt tab does not open, allow pop-ups for `aliexpress.com`.
 
 By default the receipt uses the delivery address of the order. If the contact name holds a VAT number, the script moves it to its own line. `ACME BV BE0123456789` becomes the name `ACME BV` and the line `VAT BE0123456789`.
 
-To print a different buyer block, click the ⚙ gear next to any Generate invoice button. Enter the company name, VAT number, address, and any extra lines such as an email address, IBAN or purchase order reference. The browser stores these values for aliexpress.com. **Use delivery address** clears them.
+To change the buyer block, click the ⚙ gear next to any Generate invoice button. The dialog shows the values of that order in grey. Each field works on its own:
+
+- Type a value to print it on every receipt in place of the order's value. Use **Extra lines** for an email address, IBAN or purchase order reference.
+- Leave a field empty to print each order's own value.
+- Tick **Leave off** to keep that line off the receipt, for example the phone number.
+
+The browser stores these settings for aliexpress.com. **Use delivery address** clears them.
 
 ## How it works
 
@@ -46,7 +52,7 @@ The receipt shows only what AliExpress reports. It is a purchase receipt generat
 ## Development
 
 ```sh
-node --test   # checks buyer parsing, receipt rendering and the dialog markup
+node --test   # checks the buyer rules, receipt rendering and the dialog markup
 ```
 
 To try a change without reinstalling, set `AUTO_PRINT` to `false` and paste the script into the DevTools console on an orders page. The print dialog then stays closed and you can inspect the receipt tab.

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AliExpress Invoice
 // @namespace    https://github.com/elfensky/aliexpress-invoice
-// @version      0.2.0
+// @version      0.3.0
 // @description  Adds a "Generate invoice" button to your AliExpress orders and prints a proper purchase receipt (buyer block, VAT line) to PDF.
 // @author       Andrei Lavrenov
 // @license      MIT
@@ -61,17 +61,21 @@
     return { name, vat, address, extra: a.fullPhoneNo || '' };
   }
 
-  const anyField = (b) => !!b && BUYER_FIELDS.some(([k]) => b[k]);
-
-  // The buyer block for one order. Saved buyer details replace the whole block.
+  // The buyer block for one order: a saved value replaces the order value, an empty one keeps it,
+  // and a field marked Leave off prints nothing. Buyer details saved by 0.2.0 have no marks.
   function buyerFor(saved, deliveryAddress) {
-    return anyField(saved) ? saved : buyerFromAddress(deliveryAddress);
+    const order = buyerFromAddress(deliveryAddress);
+    const s = saved || {};
+    const off = s.off || [];
+    return Object.fromEntries(BUYER_FIELDS.map(([k]) => [k, off.includes(k) ? '' : s[k] || order[k]]));
   }
 
-  // Buyer details from the settings form, trimmed; null when every field is empty.
+  // Buyer details from the settings form, trimmed; null when nothing is typed or marked.
   function settingsFromForm(form) {
     const b = Object.fromEntries(BUYER_FIELDS.map(([k]) => [k, String(form.get(k) || '').trim()]));
-    return anyField(b) ? b : null;
+    const off = form.getAll('off');
+    b.off = BUYER_FIELDS.map(([k]) => k).filter((k) => off.includes(k));
+    return BUYER_FIELDS.some(([k]) => b[k]) || b.off.length ? b : null;
   }
 
   function loadBuyer() { try { return JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) { return null; } }
@@ -154,19 +158,23 @@ ${AUTO_PRINT ? '<script>setTimeout(function () { print(); }, 100);</script>' : '
   // ---- settings dialog -----------------------------------------------------
 
   function settingsHTML(b) {
+    const off = b.off || [];
     const field = ([k, label, multi]) => {
-      const attrs = `name="${k}" data-1p-ignore autocomplete="off"`;
-      return `<label>${label}${multi ? `<textarea ${attrs} rows="3">${esc(b[k])}</textarea>` : `<input ${attrs} value="${esc(b[k])}">`}</label>`;
+      const attrs = `name="${k}" placeholder="From the order" data-1p-ignore autocomplete="off"`;
+      const input = multi ? `<textarea ${attrs} rows="3">${esc(b[k])}</textarea>` : `<input ${attrs} value="${esc(b[k])}">`;
+      const mark = `<input type="checkbox" name="off" value="${k}" aria-label="Leave ${label} off the receipt"${off.includes(k) ? ' checked' : ''}>`;
+      return `<div class="ali-invoice-field"><label>${label}${input}</label><label class="ali-invoice-off">${mark}Leave off</label></div>`;
     };
     return `<form method="dialog">
   <h3 id="ali-invoice-dialog-title">Invoice buyer details</h3>
-  <p>Leave everything empty to use the delivery address of each order.</p>
+  <p>An empty field uses the delivery address of each order. Tick Leave off to keep a line off the receipt.</p>
+  <p class="ali-invoice-shown"></p>
   ${BUYER_FIELDS.map(field).join('\n  ')}
   <menu><button value="cancel">Cancel</button><button value="clear">Use delivery address</button><button value="save" class="primary">Save</button></menu>
 </form>`;
   }
 
-  function openSettings() {
+  function openSettings(orderId) {
     const dlg = document.createElement('dialog');
     dlg.className = 'ali-invoice-dialog';
     dlg.setAttribute('aria-labelledby', 'ali-invoice-dialog-title');
@@ -178,6 +186,12 @@ ${AUTO_PRINT ? '<script>setTimeout(function () { print(); }, 100);</script>' : '
       dlg.remove();
     });
     dlg.showModal();
+    // Placeholders show what an empty field prints for this order; the generic ones stay if the request fails.
+    fetchReceipt(orderId).then((d) => {
+      const ph = buyerFor(null, d.deliveryAddress);
+      for (const [k] of BUYER_FIELDS) dlg.querySelector(`[name="${k}"]`).placeholder = ph[k] || 'Not in this order';
+      dlg.querySelector('.ali-invoice-shown').textContent = `Shown: order ${orderId}. Each order uses its own delivery address.`;
+    }, () => {});
   }
 
   // ---- page injection ------------------------------------------------------
@@ -199,7 +213,10 @@ ${AUTO_PRINT ? '<script>setTimeout(function () { print(); }, 100);</script>' : '
 .ali-invoice-dialog h3 { margin: 0 0 4px; font-size: 18px; }
 .ali-invoice-dialog p { margin: 0 0 12px; color: #666; font-size: 12px; }
 .ali-invoice-dialog label { display: block; margin-bottom: 10px; font-size: 12px; color: #444; }
-.ali-invoice-dialog input, .ali-invoice-dialog textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 8px; color: #222; font: 14px/1.4 ${FONT}; }
+.ali-invoice-dialog .ali-invoice-shown:empty { display: none; }
+.ali-invoice-dialog .ali-invoice-field { position: relative; }
+.ali-invoice-dialog .ali-invoice-off { position: absolute; top: 0; right: 0; display: flex; align-items: center; gap: 4px; margin: 0; }
+.ali-invoice-dialog input:not([type="checkbox"]), .ali-invoice-dialog textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 8px; color: #222; font: 14px/1.4 ${FONT}; }
 .ali-invoice-dialog menu { display: flex; justify-content: flex-end; gap: 8px; margin: 16px 0 0; padding: 0; }
 .ali-invoice-dialog button { height: 32px; padding: 4px 12px; border: 1px solid #999; border-radius: 16px; background: #fff; color: #222; font: 700 14px/24px ${FONT}; cursor: pointer; }
 .ali-invoice-dialog button.primary { background: #009966; color: #fff; border-color: #009966; }
@@ -222,7 +239,7 @@ ${AUTO_PRINT ? '<script>setTimeout(function () { print(); }, 100);</script>' : '
     gear.textContent = '⚙︎';
     gear.title = 'Invoice settings';
     gear.setAttribute('aria-label', 'Invoice settings');
-    gear.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); openSettings(); });
+    gear.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); openSettings(orderId); });
     wrap.append(btn, gear);
     return wrap;
   }

@@ -17,7 +17,7 @@ const receipt = {
   subOrders: [{ itemTitle: 'Widget <b>PCIe</b>', relateInfo: 'With POE', amount: '€ 84,39', itemCount: 2, sellerName: 'Some Store' }],
 };
 
-const form = (o) => { const f = new FormData(); for (const [k, v] of Object.entries(o)) f.append(k, v); return f; };
+const form = (o) => { const f = new FormData(); for (const [k, v] of Object.entries(o)) for (const x of [].concat(v)) f.append(k, x); return f; };
 
 test('buyerFor without buyer details uses the order values and splits the VAT number out of the contact name', () => {
   const b = buyerFor(null, receipt.deliveryAddress);
@@ -31,12 +31,27 @@ test('buyerFor leaves a plain name alone', () => {
   assert.deepEqual(buyerFor(null, { contactName: 'Jane Doe' }), { name: 'Jane Doe', vat: '', address: '', extra: '' });
 });
 
-test('buyerFor: saved buyer details replace the whole block', () => {
-  assert.deepEqual(buyerFor({ name: '', vat: 'BE0999999999', address: '', extra: '' }, receipt.deliveryAddress), { name: '', vat: 'BE0999999999', address: '', extra: '' });
+test('buyerFor: a saved value replaces the order value, an empty one keeps it, and Leave off prints nothing', () => {
+  assert.deepEqual(
+    buyerFor({ name: '', vat: 'BE0999999999', address: '', extra: '', off: ['extra'] }, receipt.deliveryAddress),
+    { name: 'ACME BV', vat: 'BE0999999999', address: 'Example street 1\n1000 Brussels, Belgium', extra: '' },
+  );
+  assert.equal(buyerFor({ name: 'Other BV', off: ['name'] }, receipt.deliveryAddress).name, '', 'Leave off wins over a saved value');
 });
 
-test('settingsFromForm trims the fields and returns null for an empty form', () => {
-  assert.deepEqual(settingsFromForm(form({ name: ' ACME BV ', vat: '', address: 'Street 1\n', extra: '' })), { name: 'ACME BV', vat: '', address: 'Street 1', extra: '' });
+test('buyerFor reads 0.2.0 buyer details (no Leave off marks) field by field', () => {
+  assert.deepEqual(
+    buyerFor({ name: 'Other BV', vat: '', address: '', extra: '' }, receipt.deliveryAddress),
+    { name: 'Other BV', vat: 'BE0123456789', address: 'Example street 1\n1000 Brussels, Belgium', extra: '+32 400000000' },
+  );
+});
+
+test('settingsFromForm trims the fields, keeps the Leave off marks, and returns null for an empty form', () => {
+  assert.deepEqual(
+    settingsFromForm(form({ name: ' ACME BV ', vat: '', address: 'Street 1\n', extra: '', off: ['extra', 'vat'] })),
+    { name: 'ACME BV', vat: '', address: 'Street 1', extra: '', off: ['vat', 'extra'] },
+  );
+  assert.deepEqual(settingsFromForm(form({ name: '', vat: '', address: '', extra: '', off: 'extra' })).off, ['extra'], 'a mark alone is worth saving');
   assert.equal(settingsFromForm(form({ name: ' ', vat: '', address: '', extra: '' })), null);
 });
 
@@ -53,4 +68,12 @@ test('settingsHTML labels the dialog, keeps password managers out, and escapes v
   assert.ok(html.includes('id="ali-invoice-dialog-title"'));
   assert.equal((html.match(/data-1p-ignore/g) || []).length, 4);
   assert.ok(html.includes('value="A &quot;quoted&quot; &lt;name&gt;"'));
+});
+
+test('settingsHTML gives every field a placeholder and a labelled Leave off box, ticked from the saved marks', () => {
+  const html = settingsHTML({ name: '', vat: '', address: '', extra: '', off: ['extra'] });
+  assert.equal((html.match(/placeholder="From the order"/g) || []).length, 4);
+  assert.equal((html.match(/type="checkbox" name="off"/g) || []).length, 4);
+  assert.ok(html.includes('value="extra" aria-label="Leave Extra lines (email, IBAN, reference…) off the receipt" checked>'));
+  assert.ok(!html.includes('value="name" aria-label="Leave Company / name off the receipt" checked'));
 });
