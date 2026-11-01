@@ -37,7 +37,15 @@
 
   // ---- buyer block -------------------------------------------------------
 
-  // Default buyer, parsed from the order's delivery address. AliExpress has no VAT
+  // The buyer fields, in print order: [key, label in the settings dialog, multi-line].
+  const BUYER_FIELDS = [
+    ['name', 'Company / name'],
+    ['vat', 'VAT number'],
+    ['address', 'Address', true],
+    ['extra', 'Extra lines (email, IBAN, reference…)', true],
+  ];
+
+  // Order values, parsed from the order's delivery address. AliExpress has no VAT
   // field, so companies put it in the contact name: "ACME BV BE0123456789".
   function buyerFromAddress(a) {
     a = a || {};
@@ -53,9 +61,21 @@
     return { name, vat, address, extra: a.fullPhoneNo || '' };
   }
 
+  const anyField = (b) => !!b && BUYER_FIELDS.some(([k]) => b[k]);
+
+  // The buyer block for one order. Saved buyer details replace the whole block.
+  function buyerFor(saved, deliveryAddress) {
+    return anyField(saved) ? saved : buyerFromAddress(deliveryAddress);
+  }
+
+  // Buyer details from the settings form, trimmed; null when every field is empty.
+  function settingsFromForm(form) {
+    const b = Object.fromEntries(BUYER_FIELDS.map(([k]) => [k, String(form.get(k) || '').trim()]));
+    return anyField(b) ? b : null;
+  }
+
   function loadBuyer() { try { return JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) { return null; } }
   function saveBuyer(b) { if (b) localStorage.setItem(STORE_KEY, JSON.stringify(b)); else localStorage.removeItem(STORE_KEY); }
-  const hasBuyer = (b) => !!(b && (b.name || b.vat || b.address || b.extra));
 
   // ---- receipt -----------------------------------------------------------
 
@@ -123,10 +143,8 @@ ${AUTO_PRINT ? '<script>setTimeout(function () { print(); }, 100);</script>' : '
     w.document.write(`<title>aliexpress-${esc(orderId)}</title><p style="font:14px system-ui;padding:24px">Loading order ${esc(orderId)}…</p>`);
     try {
       const d = await fetchReceipt(orderId);
-      const stored = loadBuyer();
-      const buyer = hasBuyer(stored) ? stored : buyerFromAddress(d.deliveryAddress);
       w.document.open();
-      w.document.write(renderReceipt(d, buyer));
+      w.document.write(renderReceipt(d, buyerFor(loadBuyer(), d.deliveryAddress)));
       w.document.close();
     } catch (e) {
       w.document.body.innerHTML = `<pre style="padding:24px;white-space:pre-wrap">Could not generate the invoice for order ${esc(orderId)}.\n\n${esc((e && e.message) || e)}</pre>`;
@@ -136,13 +154,14 @@ ${AUTO_PRINT ? '<script>setTimeout(function () { print(); }, 100);</script>' : '
   // ---- settings dialog -----------------------------------------------------
 
   function settingsHTML(b) {
+    const field = ([k, label, multi]) => {
+      const attrs = `name="${k}" data-1p-ignore autocomplete="off"`;
+      return `<label>${label}${multi ? `<textarea ${attrs} rows="3">${esc(b[k])}</textarea>` : `<input ${attrs} value="${esc(b[k])}">`}</label>`;
+    };
     return `<form method="dialog">
   <h3 id="ali-invoice-dialog-title">Invoice buyer details</h3>
   <p>Leave everything empty to use the delivery address of each order.</p>
-  <label>Company / name<input name="name" data-1p-ignore autocomplete="off" value="${esc(b.name)}"></label>
-  <label>VAT number<input name="vat" data-1p-ignore autocomplete="off" value="${esc(b.vat)}"></label>
-  <label>Address<textarea name="address" data-1p-ignore autocomplete="off" rows="3">${esc(b.address)}</textarea></label>
-  <label>Extra lines (email, IBAN, reference…)<textarea name="extra" data-1p-ignore autocomplete="off" rows="3">${esc(b.extra)}</textarea></label>
+  ${BUYER_FIELDS.map(field).join('\n  ')}
   <menu><button value="cancel">Cancel</button><button value="clear">Use delivery address</button><button value="save" class="primary">Save</button></menu>
 </form>`;
   }
@@ -151,16 +170,11 @@ ${AUTO_PRINT ? '<script>setTimeout(function () { print(); }, 100);</script>' : '
     const dlg = document.createElement('dialog');
     dlg.className = 'ali-invoice-dialog';
     dlg.setAttribute('aria-labelledby', 'ali-invoice-dialog-title');
-    dlg.innerHTML = settingsHTML(loadBuyer() || { name: '', vat: '', address: '', extra: '' });
+    dlg.innerHTML = settingsHTML(loadBuyer() || {});
     document.body.appendChild(dlg);
     dlg.addEventListener('close', () => {
-      if (dlg.returnValue === 'save') {
-        const f = new FormData(dlg.querySelector('form'));
-        const nb = Object.fromEntries(['name', 'vat', 'address', 'extra'].map((k) => [k, String(f.get(k) || '').trim()]));
-        saveBuyer(hasBuyer(nb) ? nb : null);
-      } else if (dlg.returnValue === 'clear') {
-        saveBuyer(null);
-      }
+      if (dlg.returnValue === 'save') saveBuyer(settingsFromForm(new FormData(dlg.querySelector('form'))));
+      else if (dlg.returnValue === 'clear') saveBuyer(null);
       dlg.remove();
     });
     dlg.showModal();
@@ -244,6 +258,6 @@ ${AUTO_PRINT ? '<script>setTimeout(function () { print(); }, 100);</script>' : '
     }).observe(document.body, { childList: true, subtree: true });
   }
 
-  if (typeof module === 'object' && module.exports) module.exports = { buyerFromAddress, renderReceipt, settingsHTML, PAGE_CSS, TOTAL_ROWS };
+  if (typeof module === 'object' && module.exports) module.exports = { buyerFor, settingsFromForm, renderReceipt, settingsHTML, PAGE_CSS, TOTAL_ROWS };
   else main();
 })();
