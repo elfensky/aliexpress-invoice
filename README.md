@@ -14,7 +14,7 @@ AliExpress has a receipt page for every order. That page omits the VAT amount, h
 | **Orders list** | **Order page** |
 | ![Generate invoice button and gear in an order card](docs/orders-list.png) | ![Generate invoice button and gear next to the order status buttons](docs/order-detail.png) |
 
-The receipt uses sample data. Screenshots are from the live site.
+The receipt and the dialog use sample data. The orders list and the order page are from the live site on 2026-11-02, with personal data blacked out.
 
 ## Install
 
