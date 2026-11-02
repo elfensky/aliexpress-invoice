@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AliExpress Invoice
 // @namespace    https://github.com/elfensky/aliexpress-invoice
-// @version      0.3.1
+// @version      0.4.0
 // @description  Adds a "Generate invoice" button to your AliExpress orders and prints a proper purchase receipt (buyer block, VAT line) to PDF.
 // @author       Andrei Lavrenov
 // @license      MIT
@@ -97,51 +97,76 @@
     throw new Error(`AliExpress returned no receipt data. A new order can take a few minutes. Try again later.\n\nAliExpress code: ${code}`);
   }
 
+  // The logo and font of AliExpress' own receipt dialog (/p/tax-ui/, 2026-11-02), loaded from their servers so
+  // this repo ships no copy of them. If one fails to load, the alt text or a system font prints instead.
+  const AE_IMG = 'https://ae-pic-a1.aliexpress-media.com/kf/';
+  const AE_FONT = 'https://assets.aliexpress-media.com/g/ae-fe/static-ui/open-sans/';
+  const LOGO_HTML = `<div class="logo"><img src="${AE_IMG}Sc4750b3945494d33bd7c1210fd85fda3X/160x160.png" alt=""><img src="${AE_IMG}S5818d28e718c47e8869e683acb8d4c4bD/332x72.png" alt="AliExpress"></div>`;
+
+  // Colours and type of AliExpress' order pages and receipt dialog: ink #191919, grey #757575, divider #f5f5f5,
+  // price red #f00633, and the orange gradient of their primary buttons. On screen the receipt is an A4 sheet.
   const RECEIPT_CSS = `
+@font-face { font-family: "Open Sans"; font-weight: 400; src: local("Open Sans Regular"), local("OpenSans-Regular"), url(${AE_FONT}mem8YaGs126MiZpBA-UFVZ0bf8pkAg.woff2) format("woff2"); }
+@font-face { font-family: "Open Sans"; font-weight: 700; src: local("Open Sans Bold"), local("OpenSans-Bold"), url(${AE_FONT}mem5YaGs126MiZpBA-UN7rgOUuhpKKSTjw.woff2) format("woff2"); }
 @page { size: A4; margin: 16mm; }
-body { font: 12px/1.45 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; color: #111; max-width: 720px; margin: 24px auto; padding: 0 16px; }
-h1 { font-size: 22px; margin: 0 0 4px; }
-h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #666; margin: 0 0 6px; }
-header, .parties { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
-.parties > div { flex: 1; }
-table { border-collapse: collapse; }
-td, th { padding: 6px 8px; text-align: left; vertical-align: top; }
-.meta td:first-child { color: #666; padding-right: 16px; }
-.items { width: 100%; margin-bottom: 16px; }
-.items th { border-bottom: 2px solid #111; }
-.items td { border-bottom: 1px solid #ddd; }
-.items th:nth-child(n+2), .items td:nth-child(n+2) { text-align: right; white-space: nowrap; }
-.totals { margin-left: auto; }
-.totals td:last-child { text-align: right; min-width: 90px; }
-.totals .total td { border-top: 2px solid #111; font-weight: 700; }
-.muted { color: #666; font-size: 11px; }
-footer { margin-top: 32px; }
-.no-print { position: fixed; right: 16px; bottom: 16px; padding: 10px 16px; font: inherit; border: 1px solid #111; background: #fff; border-radius: 999px; cursor: pointer; }
-@media print { .no-print { display: none; } body { margin: 0; max-width: none; } }
+html { background: #f5f5f5; }
+body { box-sizing: border-box; max-width: 794px; margin: 32px auto; padding: 56px 60px 60px; border-radius: 12px; background: #fff; color: #191919; font: 12px/1.5 "Open Sans", Roboto, Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+h1 { margin: 0 0 2px; font-size: 22px; line-height: 1.2; }
+h2 { margin: 0 0 8px; font-size: 14px; }
+dt { color: #757575; }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding-bottom: 20px; border-bottom: 3px solid #ff3000; border-image: linear-gradient(90deg, #ff640e, #ff3000) 1; }
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo img:first-child { width: 44px; height: 44px; }
+.logo img:last-child { height: 22px; }
+.top > div { text-align: right; }
+.facts { display: flex; flex-wrap: wrap; gap: 12px 40px; margin: 0; padding: 16px 0; border-bottom: 8px solid #f5f5f5; }
+.facts dd { margin: 2px 0 0; font-size: 13px; font-weight: 700; }
+.parties { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; padding: 24px 0; margin-bottom: 24px; border-bottom: 8px solid #f5f5f5; break-inside: avoid; }
+.parties strong { font-size: 13px; }
+table { width: 100%; border-spacing: 0; font-variant-numeric: tabular-nums; }
+td, th { padding: 8px; text-align: left; vertical-align: top; }
+td:first-child, th:first-child { padding-left: 0; }
+td:last-child, th:last-child { padding-right: 0; }
+.items th { padding-top: 0; border-bottom: 1px solid #191919; }
+.items td { border-bottom: 1px solid #ebebeb; }
+.items th:nth-child(n+2), .items td:nth-child(n+2) { width: 1%; text-align: right; white-space: nowrap; }
+.items tr { break-inside: avoid; }
+.items .muted { margin-top: 2px; }
+.totals { width: 300px; margin: 16px 0 0 auto; break-inside: avoid; }
+.totals td { padding: 4px 0; }
+.totals td:last-child { text-align: right; }
+.totals .total td { padding-top: 10px; border-top: 1px solid #191919; font-size: 18px; font-weight: 700; }
+.totals .total td:last-child { color: #f00633; }
+.totals .vat td { padding: 8px 10px; background: #fff1eb; font-weight: 700; }
+.muted { color: #757575; font-size: 11px; }
+footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #ebebeb; break-before: avoid; }
+.no-print { position: fixed; right: 24px; bottom: 24px; padding: 4px 24px; border: 0; border-radius: 24px; background: #191919; color: #fff; font: 700 16px/32px "Open Sans", Roboto, Arial, sans-serif; cursor: pointer; }
+@media print { html { background: none; } body { max-width: none; margin: 0; padding: 0; border-radius: 0; } .no-print { display: none; } }
 `;
 
   function renderReceipt(d, buyer) {
     const pay = d.paymentInfo || {};
     const subOrders = d.subOrders || [];
     const sellers = [...new Set(subOrders.map((s) => s.sellerName).filter(Boolean))];
-    const block = (b) => [b.name, b.vat && 'VAT ' + b.vat, ...lines(b.address), ...lines(b.extra)].filter(Boolean).map(esc).join('<br>');
-    const totals = TOTAL_ROWS.filter(([k]) => d[k]).map(([k, label]) => `<tr><td>${label}</td><td>${esc(d[k])}</td></tr>`).join('');
-    const items = subOrders.map((s) => `<tr><td>${esc(s.itemTitle)}${s.relateInfo ? `<div class="muted">${esc(s.relateInfo)}</div>` : ''}<div class="muted">Sold by ${esc(s.sellerName)}</div></td><td>${esc(s.itemCount)}</td><td>${esc(s.amount)}</td></tr>`).join('');
-    const row = (label, value) => (value ? `<tr><td>${label}</td><td>${esc(value)}</td></tr>` : '');
+    const block = (b) => [b.name && `<strong>${esc(b.name)}</strong>`, ...[b.vat && 'VAT ' + b.vat, ...lines(b.address), ...lines(b.extra)].map(esc)].filter(Boolean).join('<br>');
+    const items = subOrders.map((s) => `<tr><td>${esc(s.itemTitle)}<div class="muted">${[s.relateInfo, s.sellerName && 'Sold by ' + s.sellerName].filter(Boolean).map(esc).join(' · ')}</div></td><td>${esc(s.itemCount)}</td><td>${esc(s.amount)}</td></tr>`).join('');
+    const row = (label, value, cls) => (value ? `<tr${cls ? ` class="${cls}"` : ''}><td>${label}</td><td>${esc(value)}</td></tr>` : '');
+    const fact = (label, value) => (value ? `<div><dt>${label}</dt><dd>${esc(value)}</dd></div>` : '');
     return `<!doctype html><html><head><meta charset="utf-8"><title>aliexpress-${esc(d.orderId)}</title><style>${RECEIPT_CSS}</style></head><body>
-<header>
+<header class="top">
+  ${LOGO_HTML}
   <div><h1>Purchase receipt</h1><div class="muted">Generated from AliExpress order data on ${new Date().toISOString().slice(0, 10)}</div></div>
-  <table class="meta">${row('Order', d.orderId)}${row('Order date', d.orderTime)}${row('Paid on', pay.paymentDate)}${row('Payment', pay.methodName && (pay.methodName + (pay.paymentAmountStr ? ' · ' + pay.paymentAmountStr : '')))}</table>
 </header>
+<dl class="facts">${fact('Order', d.orderId)}${fact('Order date', d.orderTime)}${fact('Paid on', pay.paymentDate)}${fact('Payment', pay.methodName && (pay.methodName + (pay.paymentAmountStr ? ' · ' + pay.paymentAmountStr : '')))}</dl>
 <section class="parties">
-  <div><h2>Seller</h2>AliExpress (marketplace)<br>${sellers.map(esc).join('<br>')}<div class="muted">Items are sold by third-party sellers on AliExpress, not by AliExpress itself.</div></div>
+  <div><h2>Seller</h2><strong>AliExpress (marketplace)</strong><br>${sellers.map(esc).join('<br>')}<div class="muted">Items are sold by third-party sellers on AliExpress, not by AliExpress itself.</div></div>
   <div><h2>Buyer</h2>${block(buyer)}</div>
 </section>
 <table class="items"><thead><tr><th>Item</th><th>Qty</th><th>Unit price</th></tr></thead><tbody>${items}</tbody></table>
-<table class="totals">${totals}<tr class="total"><td>Total</td><td>${esc(d.orderTotal)}</td></tr>${row('of which VAT (included)', d.includedTaxDisplay)}</table>
+<table class="totals">${TOTAL_ROWS.map(([k, label]) => row(label, d[k])).join('')}${row('Total', d.orderTotal, 'total')}${row('of which VAT (included)', d.includedTaxDisplay, 'vat')}</table>
 <footer class="muted">Amounts as reported by AliExpress for order ${esc(d.orderId)}. "VAT (included)" is the tax amount AliExpress reports as included in the total.</footer>
 <button class="no-print" onclick="print()">Print / Save as PDF</button>
-${AUTO_PRINT ? '<script>setTimeout(function () { print(); }, 100);</script>' : ''}
+${AUTO_PRINT ? '<script>addEventListener("load", function () { document.fonts.ready.then(function () { setTimeout(print, 100); }); });</script>' : ''}
 </body></html>`;
   }
 
