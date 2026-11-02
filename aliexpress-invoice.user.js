@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AliExpress Invoice
 // @namespace    https://github.com/elfensky/aliexpress-invoice
-// @version      0.3.0
+// @version      0.4.0
 // @description  Adds a "Generate invoice" button to your AliExpress orders and prints a proper purchase receipt (buyer block, VAT line) to PDF.
 // @author       Andrei Lavrenov
 // @license      MIT
@@ -93,48 +93,65 @@
     return d;
   }
 
+  // AliExpress' 2024 wordmark (Wikimedia Commons, File:AliExpress_2024.svg), coloured like the site header
+  // on 2026-11-02. Inline, so the receipt tab loads nothing from the network.
+  const LOGO_SVG = '<svg class="logo" role="img" aria-label="AliExpress" viewBox="0 0 1718.74 372.31"><g fill="#111"><path d="m13.74,288.1c8.52-22.47,16.19-42.71,25.1-66.21,11.2,16.28,21.62,29.74,30.02,44.35,4.57,7.95-8.45,20.67-18.38,21.67-2.13.21-4.3.18-6.46.18-9.02.02-18.03,0-30.28,0Z"/><path d="m276.06,288.23V.23h46.32v288h-46.32Z"/><path d="m76.54,126.82L120.97.23h50.4l76.68,288h-32.49c-9.32-3.82-15.32-10.44-17.93-19.37-14.18-48.57-57.14-192.46-57.14-192.46l-35.07,94.49-28.89-44.07Z"/><path d="m370.93,288.92V88.82h46.32v200.1h-46.32Z"/><ellipse cx="394.09" cy="29.04" rx="29.27" ry="28.59"/><polygon points="466.88 0 629.97 0 629.97 40.21 511.13 40.21 511.13 112.99 629.97 112.99 629.97 152.59 511.13 152.58 511.13 247.16 644.4 247.25 614.41 288.39 466.88 288.46 466.88 0"/><polygon points="646.22 88.28 698.51 88.28 741.01 150.04 783.81 88.28 837.93 88.28 768.45 189.17 837.93 289.45 782.59 288.38 741.47 229.83 699.73 288.38 645.01 288.38 714.91 188.87 646.22 88.28"/><path d="m966.82,83.16c-24.06,0-43.51,10.76-59.64,28.39v-23.27h-47.64v284.03h47.64v-106.7c16.23,18.37,34.4,22.77,59.38,22.77,49.66,0,93.57-43.07,93.57-101.01s-43.64-104.22-93.3-104.22Zm-6.75,164.87c-30.83,0-55.65-26.69-55.65-62.04s24.99-63.16,55.81-63.16,57.92,28.23,57.92,63.58-27.26,61.62-58.08,61.62Z"/><path d="m1121.19,179.85c0-29.4,26.45-61.53,66.65-57.42,4.93-8.77,17.28-23.73,29.81-30.5-37.52-12.84-65.84-8.36-96.48,16.98l.02-20.65h-45.02s.01,199.96.01,199.96h45.01v-108.37Z"/><path d="m1327.46,235.66c-10.35,9.17-23.97,14.75-38.89,14.75-26.1,0-49.58-19.1-57.21-42.65h152.86c2.34-76.89-40.94-118.24-95.65-118.24s-99.06,44.79-99.06,100.05,44.35,100.05,99.06,100.05c38.25,0,71.43-21.9,87.94-53.96h-49.05Zm-40.27-104.79c26.1,0,48.2,17.03,55.84,40.59h-111.68c7.64-23.55,29.74-40.59,55.84-40.59Z"/><path d="m1507.7,142.05h40.36c0-64.99-150.42-78.06-150.43,9.02,0,65.76,113.05,42.5,112.51,75.52-.48,29.55-64.24,26.12-73.53,7.18h-41.27c15.59,79.03,156.84,67.08,156.84-4.13,0-78.9-112.82-40.43-114.34-80.87-1.23-32.52,59.2-30.1,69.86-6.73Z"/><path d="m1674.26,142.05h40.36c0-64.99-150.42-78.06-150.43,9.02,0,65.76,113.05,42.5,112.51,75.52-.48,29.55-64.24,26.12-73.53,7.18h-41.27c15.59,79.03,156.84,67.08,156.84-4.13,0-78.9-112.82-40.43-114.34-80.87-1.23-32.52,59.2-30.1,69.86-6.73Z"/></g><path fill="#fcc836" d="m0,130.12h59.68l38.91,57.47c43.66-49.62,100.17-63.65,165.6-52.94-63.38,19.43-123.28,56.61-177.82,120.36L0,130.12Z"/></svg>';
+
+  // On screen the receipt sits on a grey desk as an A4 sheet; in print the sheet is the page.
   const RECEIPT_CSS = `
 @page { size: A4; margin: 16mm; }
-body { font: 12px/1.45 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; color: #111; max-width: 720px; margin: 24px auto; padding: 0 16px; }
-h1 { font-size: 22px; margin: 0 0 4px; }
-h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #666; margin: 0 0 6px; }
-header, .parties { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
-.parties > div { flex: 1; }
-table { border-collapse: collapse; }
-td, th { padding: 6px 8px; text-align: left; vertical-align: top; }
-.meta td:first-child { color: #666; padding-right: 16px; }
-.items { width: 100%; margin-bottom: 16px; }
-.items th { border-bottom: 2px solid #111; }
-.items td { border-bottom: 1px solid #ddd; }
-.items th:nth-child(n+2), .items td:nth-child(n+2) { text-align: right; white-space: nowrap; }
-.totals { margin-left: auto; }
-.totals td:last-child { text-align: right; min-width: 90px; }
-.totals .total td { border-top: 2px solid #111; font-weight: 700; }
-.muted { color: #666; font-size: 11px; }
-footer { margin-top: 32px; }
-.no-print { position: fixed; right: 16px; bottom: 16px; padding: 10px 16px; font: inherit; border: 1px solid #111; background: #fff; border-radius: 999px; cursor: pointer; }
-@media print { .no-print { display: none; } body { margin: 0; max-width: none; } }
+html { background: #ececec; }
+body { box-sizing: border-box; max-width: 794px; margin: 32px auto; padding: 60px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.1), 0 8px 24px rgba(0,0,0,.06); color: #111; font: 12px/1.5 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+h1 { margin: 0 0 2px; font-size: 22px; line-height: 1.2; letter-spacing: -.01em; }
+h2, dt, .items th { color: #6b6b6b; font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+h2 { margin: 0 0 8px; }
+.top { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding-bottom: 20px; border-bottom: 2px solid #111; }
+.logo { display: block; height: 28px; margin-top: 2px; }
+.top > div { text-align: right; }
+.facts { display: flex; flex-wrap: wrap; gap: 12px 40px; margin: 0; padding: 16px 0; border-bottom: 1px solid #e3e3e3; }
+.facts dd { margin: 2px 0 0; font-size: 13px; }
+.parties { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; padding: 24px 0 32px; break-inside: avoid; }
+.parties strong { font-size: 13px; }
+table { width: 100%; border-spacing: 0; font-variant-numeric: tabular-nums; }
+td, th { padding: 8px; text-align: left; vertical-align: top; }
+td:first-child, th:first-child { padding-left: 0; }
+td:last-child, th:last-child { padding-right: 0; }
+.items th { padding-top: 0; border-bottom: 1px solid #111; }
+.items td { border-bottom: 1px solid #e3e3e3; }
+.items th:nth-child(n+2), .items td:nth-child(n+2) { width: 1%; text-align: right; white-space: nowrap; }
+.items tr { break-inside: avoid; }
+.items .muted { margin-top: 2px; }
+.totals { width: 300px; margin: 16px 0 0 auto; break-inside: avoid; }
+.totals td { padding: 4px 0; }
+.totals td:last-child { text-align: right; }
+.totals .total td { padding-top: 10px; border-top: 1px solid #111; font-size: 16px; font-weight: 700; }
+.totals .vat td { padding: 8px 10px; background: #f3f3f3; font-weight: 600; }
+.muted { color: #6b6b6b; font-size: 11px; }
+footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #e3e3e3; break-before: avoid; }
+.no-print { position: fixed; right: 24px; bottom: 24px; padding: 10px 18px; border: 0; border-radius: 999px; background: #111; color: #fff; font: 600 13px system-ui, sans-serif; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+@media print { html { background: none; } body { max-width: none; margin: 0; padding: 0; box-shadow: none; } .no-print { display: none; } }
 `;
 
   function renderReceipt(d, buyer) {
     const pay = d.paymentInfo || {};
     const subOrders = d.subOrders || [];
     const sellers = [...new Set(subOrders.map((s) => s.sellerName).filter(Boolean))];
-    const block = (b) => [b.name, b.vat && 'VAT ' + b.vat, ...lines(b.address), ...lines(b.extra)].filter(Boolean).map(esc).join('<br>');
-    const totals = TOTAL_ROWS.filter(([k]) => d[k]).map(([k, label]) => `<tr><td>${label}</td><td>${esc(d[k])}</td></tr>`).join('');
-    const items = subOrders.map((s) => `<tr><td>${esc(s.itemTitle)}${s.relateInfo ? `<div class="muted">${esc(s.relateInfo)}</div>` : ''}<div class="muted">Sold by ${esc(s.sellerName)}</div></td><td>${esc(s.itemCount)}</td><td>${esc(s.amount)}</td></tr>`).join('');
-    const row = (label, value) => (value ? `<tr><td>${label}</td><td>${esc(value)}</td></tr>` : '');
+    const block = (b) => [b.name && `<strong>${esc(b.name)}</strong>`, ...[b.vat && 'VAT ' + b.vat, ...lines(b.address), ...lines(b.extra)].map(esc)].filter(Boolean).join('<br>');
+    const items = subOrders.map((s) => `<tr><td>${esc(s.itemTitle)}<div class="muted">${[s.relateInfo, s.sellerName && 'Sold by ' + s.sellerName].filter(Boolean).map(esc).join(' · ')}</div></td><td>${esc(s.itemCount)}</td><td>${esc(s.amount)}</td></tr>`).join('');
+    const row = (label, value, cls) => (value ? `<tr${cls ? ` class="${cls}"` : ''}><td>${label}</td><td>${esc(value)}</td></tr>` : '');
+    const fact = (label, value) => (value ? `<div><dt>${label}</dt><dd>${esc(value)}</dd></div>` : '');
     return `<!doctype html><html><head><meta charset="utf-8"><title>aliexpress-${esc(d.orderId)}</title><style>${RECEIPT_CSS}</style></head><body>
-<header>
+<header class="top">
+  ${LOGO_SVG}
   <div><h1>Purchase receipt</h1><div class="muted">Generated from AliExpress order data on ${new Date().toISOString().slice(0, 10)}</div></div>
-  <table class="meta">${row('Order', d.orderId)}${row('Order date', d.orderTime)}${row('Paid on', pay.paymentDate)}${row('Payment', pay.methodName && (pay.methodName + (pay.paymentAmountStr ? ' · ' + pay.paymentAmountStr : '')))}</table>
 </header>
+<dl class="facts">${fact('Order', d.orderId)}${fact('Order date', d.orderTime)}${fact('Paid on', pay.paymentDate)}${fact('Payment', pay.methodName && (pay.methodName + (pay.paymentAmountStr ? ' · ' + pay.paymentAmountStr : '')))}</dl>
 <section class="parties">
-  <div><h2>Seller</h2>AliExpress (marketplace)<br>${sellers.map(esc).join('<br>')}<div class="muted">Items are sold by third-party sellers on AliExpress, not by AliExpress itself.</div></div>
+  <div><h2>Seller</h2><strong>AliExpress (marketplace)</strong><br>${sellers.map(esc).join('<br>')}<div class="muted">Items are sold by third-party sellers on AliExpress, not by AliExpress itself.</div></div>
   <div><h2>Buyer</h2>${block(buyer)}</div>
 </section>
 <table class="items"><thead><tr><th>Item</th><th>Qty</th><th>Unit price</th></tr></thead><tbody>${items}</tbody></table>
-<table class="totals">${totals}<tr class="total"><td>Total</td><td>${esc(d.orderTotal)}</td></tr>${row('of which VAT (included)', d.includedTaxDisplay)}</table>
+<table class="totals">${TOTAL_ROWS.map(([k, label]) => row(label, d[k])).join('')}${row('Total', d.orderTotal, 'total')}${row('of which VAT (included)', d.includedTaxDisplay, 'vat')}</table>
 <footer class="muted">Amounts as reported by AliExpress for order ${esc(d.orderId)}. "VAT (included)" is the tax amount AliExpress reports as included in the total.</footer>
 <button class="no-print" onclick="print()">Print / Save as PDF</button>
 ${AUTO_PRINT ? '<script>setTimeout(function () { print(); }, 100);</script>' : ''}
