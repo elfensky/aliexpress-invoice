@@ -57,7 +57,7 @@ test('settingsFromForm trims the fields, keeps the Leave off marks, and returns 
 
 test('renderReceipt shows the buyer, every reported amount, the VAT line, and escapes HTML', () => {
   const html = renderReceipt(receipt, buyerFor(null, receipt.deliveryAddress));
-  for (const s of ['ACME BV', 'VAT BE0123456789', '€ 168,78', '-€ 0,10', '€ 3,63', '€ 172,41', 'of which VAT (included)', '€ 29,92', 'Bancontact', 'Some Store', 'Widget &lt;b&gt;PCIe&lt;/b&gt;', '<title>aliexpress-3000000000000001</title>', 'aria-label="AliExpress"']) {
+  for (const s of ['ACME BV', 'VAT BE0123456789', '€ 168,78', '-€ 0,10', '€ 3,63', '€ 172,41', 'of which VAT (included)', '€ 29,92', 'Bancontact', 'Some Store', 'Widget &lt;b&gt;PCIe&lt;/b&gt;', '<title>aliexpress-3000000000000001</title>', 'alt="AliExpress"']) {
     assert.ok(html.includes(s), 'missing: ' + s);
   }
   assert.ok(!html.includes('Discount'), 'absent keys must not render');

@@ -10,7 +10,7 @@ AliExpress has a receipt page for every order. That page omits the VAT amount, h
 
 | Final result | Settings |
 |---|---|
-| ![Receipt with the AliExpress logo, buyer, seller, items, totals and the VAT line](docs/receipt-sample.png) | ![Dialog with company name, VAT number, address and extra lines](docs/settings-dialog.png) |
+| ![Receipt in AliExpress style with logo, buyer, seller, items, totals and the VAT line](docs/receipt-sample.png) | ![Dialog with company name, VAT number, address and extra lines](docs/settings-dialog.png) |
 | **Orders list** | **Order page** |
 | ![Generate invoice button and gear in an order card](docs/orders-list.png) | ![Generate invoice button and gear next to the order status buttons](docs/order-detail.png) |
 
