@@ -1,7 +1,7 @@
 // Self-check for the pure parts. Run: node --test
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buyerFor, settingsFromForm, renderReceipt, settingsHTML } = require('./aliexpress-invoice.user.js');
+const { buyerFor, settingsFromForm, fetchReceipt, renderReceipt, settingsHTML } = require('./aliexpress-invoice.user.js');
 
 // Trimmed shape of mtop.global.finance.taxation.invoice.queryOrderReceiptInfo → data.data
 const receipt = {
@@ -16,6 +16,11 @@ const receipt = {
   deliveryAddress: { contactName: 'ACME BV BE0123456789', detailAddress: 'Example street 1', detailAddress2: '', postCode: '1000', regionAddress: 'Brussels, Belgium', fullPhoneNo: '+32 400000000' },
   subOrders: [{ itemTitle: 'Widget <b>PCIe</b>', relateInfo: 'With POE', amount: '€ 84,39', itemCount: 2, sellerName: 'Some Store' }],
 };
+
+// Stand-ins for the page's lib.mtop: one answers with a response, one rejects with it.
+const ok = { ret: ['SUCCESS::调用成功'], data: { data: receipt } };
+const answers = (res, seen = {}) => ({ request: async (p) => (seen.p = p, res) });
+const rejects = (res) => ({ request: async () => { throw res; } });
 
 const form = (o) => { const f = new FormData(); for (const [k, v] of Object.entries(o)) for (const x of [].concat(v)) f.append(k, x); return f; };
 
@@ -53,6 +58,32 @@ test('settingsFromForm trims the fields, keeps the Leave off marks, and returns 
   );
   assert.deepEqual(settingsFromForm(form({ name: '', vat: '', address: '', extra: '', off: 'extra' })).off, ['extra'], 'a mark alone is worth saving');
   assert.equal(settingsFromForm(form({ name: ' ', vat: '', address: '', extra: '' })), null);
+});
+
+test('fetchReceipt asks the request client for one order and returns its receipt data', async () => {
+  const seen = {};
+  assert.deepEqual(await fetchReceipt(receipt.orderId, answers(ok, seen)), receipt);
+  assert.equal(seen.p.api, 'mtop.global.finance.taxation.invoice.queryOrderReceiptInfo');
+  assert.deepEqual(seen.p.data, { orderId: receipt.orderId });
+});
+
+test('fetchReceipt: a page without a request client gets a plain message', async () => {
+  await assert.rejects(fetchReceipt(receipt.orderId, null), { message: /^This page has no AliExpress request client .*reload it\.$/ });
+});
+
+test('fetchReceipt: every failed response gets one plain message and AliExpress\' code, never [object Object]', async () => {
+  const plain = /^AliExpress returned no receipt data\. A new order can take a few minutes\. Try again later\.\n\nAliExpress code: /;
+  const failures = [
+    // What AliExpress answered for an unknown order, 2026-11-02: SUCCESS, with the cause inside data.
+    [answers({ ret: ['SUCCESS::调用成功'], data: { errorCode: 'SYSTEM_EXCEPTION', errorMsg: 'getNonTaxPageQueryInfoNew error', succeeded: false } }), 'SYSTEM_EXCEPTION: getNonTaxPageQueryInfoNew error'],
+    [rejects({ ret: ['FAIL_BIZ_X::not ready'], data: {} }), 'FAIL_BIZ_X::not ready'],
+    [answers({ ret: ['SUCCESS::调用成功'], data: {} }), 'SUCCESS::调用成功'],
+    [rejects(new TypeError('Failed to fetch')), 'Failed to fetch'],
+    [answers(undefined), 'none'],
+  ];
+  for (const [mtop, code] of failures) {
+    await assert.rejects(fetchReceipt(receipt.orderId, mtop), (e) => plain.test(e.message) && e.message.endsWith(code) && !e.message.includes('[object'));
+  }
 });
 
 test('renderReceipt shows the buyer, every reported amount, the VAT line, and escapes HTML', () => {
