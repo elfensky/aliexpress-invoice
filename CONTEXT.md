@@ -14,6 +14,10 @@ _Avoid_: Invoice (only the button label says "Generate invoice"), bill
 One AliExpress purchase, known by its order id. It can hold items from several sellers.
 _Avoid_: Purchase, transaction
 
+**Receipt data**:
+What AliExpress returns for one order: amounts, items, sellers, payment and delivery address. The purchase receipt is made from it.
+_Avoid_: Invoice data, order details
+
 **Included VAT**:
 The tax amount AliExpress reports as included in the order total.
 _Avoid_: Tax, import charges (a different amount)

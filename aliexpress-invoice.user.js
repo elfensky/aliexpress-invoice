@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AliExpress Invoice
 // @namespace    https://github.com/elfensky/aliexpress-invoice
-// @version      0.3.0
+// @version      0.3.1
 // @description  Adds a "Generate invoice" button to your AliExpress orders and prints a proper purchase receipt (buyer block, VAT line) to PDF.
 // @author       Andrei Lavrenov
 // @license      MIT
@@ -83,14 +83,18 @@
 
   // ---- receipt -----------------------------------------------------------
 
-  // Reuses the page's own signed request client, so this script never touches the token or signature.
-  async function fetchReceipt(orderId) {
-    const mtop = window.lib && window.lib.mtop;
-    if (!mtop) throw new Error('AliExpress request client (lib.mtop) not found on this page.');
-    const res = await mtop.request({ api: RECEIPT_API, v: '1.0', type: 'POST', ecode: 1, needLogin: true, data: { orderId } });
-    const d = res && res.data && res.data.data;
-    if (!d || !d.orderId) throw new Error('Unexpected receipt response: ' + JSON.stringify(res && res.ret));
-    return d;
+  // The receipt data of one order. Reuses the page's own signed request client, so this script never
+  // touches the token or signature. The client is read at call time; tests pass their own.
+  // Every failure throws one plain message that claims no cause, with AliExpress' code for bug reports.
+  async function fetchReceipt(orderId, mtop = window.lib && window.lib.mtop) {
+    if (!mtop) throw new Error('This page has no AliExpress request client (lib.mtop). Open an order page on aliexpress.com and reload it.');
+    // A failed order still answers SUCCESS, with the cause in data.errorCode (seen 2026-11-02).
+    // A rejection (network error, or a failure ret code) carries message or ret instead.
+    const res = await mtop.request({ api: RECEIPT_API, v: '1.0', type: 'POST', ecode: 1, needLogin: true, data: { orderId } }).catch((e) => e);
+    const r = (res && res.data) || {};
+    if (r.data && r.data.orderId) return r.data;
+    const code = [r.errorCode, r.errorMsg].filter(Boolean).join(': ') || String((res && (res.ret || res.message)) || 'none');
+    throw new Error(`AliExpress returned no receipt data. A new order can take a few minutes. Try again later.\n\nAliExpress code: ${code}`);
   }
 
   const RECEIPT_CSS = `
@@ -275,6 +279,6 @@ ${AUTO_PRINT ? '<script>setTimeout(function () { print(); }, 100);</script>' : '
     }).observe(document.body, { childList: true, subtree: true });
   }
 
-  if (typeof module === 'object' && module.exports) module.exports = { buyerFor, settingsFromForm, renderReceipt, settingsHTML, PAGE_CSS, TOTAL_ROWS };
+  if (typeof module === 'object' && module.exports) module.exports = { buyerFor, settingsFromForm, fetchReceipt, renderReceipt, settingsHTML, PAGE_CSS, TOTAL_ROWS };
   else main();
 })();
