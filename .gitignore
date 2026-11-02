@@ -7,7 +7,6 @@
 .planning/milestone.lock
 .planning/research/.cache/
 .planning/intel/
-.planning/debug/
 
 # Local UI-review captures and browser-tool output; the verdicts live in the phase records
 .planning/ui-reviews/
