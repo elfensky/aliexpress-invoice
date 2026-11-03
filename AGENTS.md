@@ -20,3 +20,14 @@ git worktree unlock .worktrees/<slug> && git worktree remove .worktrees/<slug> &
 
 A locked worktree you did not create belongs to another session — leave it. `.claude/worktrees/` is
 Claude Code's own subagent isolation and is managed by the harness.
+
+## Life cockpit
+
+Tracked in the life-cockpit vault under `#personal` (tracker: `elfensky/aliexpress-invoice`). The cockpit is the
+control plane (what to work on); this repo is where the work happens. Report progress by
+opening/closing issues and PRs as usual — the cockpit pulls from the tracker on its next
+`/sync`. Nothing to update in the vault; don't mirror cockpit state (milestones, due dates) here.
+GSD projects: after `/gsd-new-project`, run `/cockpit-gsd-profile` once in this repo before planning the first slice.
+Roadmap: this repo owns its roadmap. `.planning/ROADMAP.md` (GSD) is the one roadmap file here; no second
+roadmap file lives in this repo. A session in this repo publishes it to projects.static.lav.ren through
+keijiban (`elfensky/keijiban`); the vault keeps the enrollment only, never a copy of the plan.
