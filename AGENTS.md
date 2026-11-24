@@ -15,7 +15,7 @@ cd .worktrees/<slug>                             # work and commit here
 git push -u origin HEAD && gh pr create --base main --fill
 gh pr merge --rebase                             # GitHub deletes the remote branch
 cd - && git pull --ff-only
-git worktree unlock .worktrees/<slug> && git worktree remove .worktrees/<slug> && git branch -D <type>/<slug>
+git worktree unlock .worktrees/<slug> && git worktree remove .worktrees/<slug>   # a session-start hook deletes the local branch
 ```
 
 A locked worktree you did not create belongs to another session — leave it. `.claude/worktrees/` is
