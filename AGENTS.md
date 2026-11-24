@@ -13,7 +13,7 @@ git worktree prune && git fetch -q --prune origin
 git worktree add --lock --reason "$(hostname -s)" .worktrees/<slug> -b <type>/<slug> origin/main
 cd .worktrees/<slug>                             # work and commit here
 git push -u origin HEAD && gh pr create --base main --fill
-gh pr merge --rebase --delete-branch
+gh pr merge --rebase                             # GitHub deletes the remote branch
 cd - && git pull --ff-only
 git worktree unlock .worktrees/<slug> && git worktree remove .worktrees/<slug> && git branch -D <type>/<slug>
 ```
